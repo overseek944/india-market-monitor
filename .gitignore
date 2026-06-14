@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.next/
+*.log
+
+# Local data: SQLite DB + instrument-master caches (regenerated on first run)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.json
+
+.DS_Store
+.env
+.env.local
+*.tsbuildinfo

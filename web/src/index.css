@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  /* India-gold accent on charcoal — a Dalal Street terminal feel, distinct from the
+     US monitor's emerald. Green = up, red = down (Indian market convention). */
+  --color-accent: oklch(0.81 0.15 78);
+  --color-bull: oklch(0.74 0.17 152);
+  --color-bear: oklch(0.69 0.21 25);
+  --color-warn: oklch(0.85 0.18 85);
+  --color-info: oklch(0.72 0.13 240);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Inter",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", "Menlo",
+    "Monaco", monospace;
+
+  --breakpoint-3xl: 1920px;
+}
+
+html, body, #root { height: 100%; }
+body { font-family: var(--font-sans); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-in { animation: slide-in 0.25s ease-out; }
+
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-ticker { animation: ticker 40s linear infinite; }
+.animate-ticker:hover { animation-play-state: paused; }

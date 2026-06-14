@@ -1,0 +1,17 @@
+{
+  "name": "india-market-monitor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "India Market Monitor — a production-grade local news & filings terminal for Indian equities (NSE/BSE/SEBI + the financial press), with local AI thesis-scoring.",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c green,cyan \"npm run dev --workspace api\" \"npm run dev --workspace web\"",
+    "build": "npm run build --workspace api && npm run build --workspace web",
+    "start": "npm run start --workspace api",
+    "migrate": "npm run migrate --workspace api"
+  },
+  "workspaces": ["api", "web"],
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
