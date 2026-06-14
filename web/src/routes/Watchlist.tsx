@@ -17,7 +17,7 @@ export default function Watchlist() {
   const [filters, setFilters] = useState<FeedFilters>({
     scope: "instrument",
     minRelevance: 0,
-    includeBackfill: false,
+    includeBackfill: true,
     sort: "newest",
     timeRange: "all",
   });

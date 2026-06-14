@@ -62,6 +62,12 @@ It understands the Indian context — LODR, promoter & FII holdings, rating acti
 deals, results-vs-estimates — and **collapses the same event from many outlets into one card**. All of it runs
 through your local `claude` CLI: **no API key, nothing leaves your machine.**
 
+### 📥 Bring your own inbox — email monitoring (IMAP)
+Point the monitor at any inbox you route alerts into — **NSE/BSE filing mailers, broker & PMS notices, exchange
+digests, paid research newsletters, Google Alerts**. New mail is parsed, AI-scored, and auto-routed to the stock
+it mentions (or kept market-wide). Read-only — your mailbox is never touched. Connect it from the **Sources** tab
+with a built-in "test connection" check.
+
 ### 🔔 Alerts that respect your time
 Fire on desktop, webhook (Slack/Discord/Telegram-relay), or log when a *scored, non-duplicate* item clears
 your bar — scoped to `all`, `market`, or a specific list like `RELIANCE,TCS`.
@@ -148,7 +154,8 @@ fail-soft ingest where any single source erroring never breaks a cycle.
 | **2 · Macro** | Macro Radar (RBI, inflation, FII/DII, rupee/crude, Budget) | market |
 | **2 · Press** | Economic Times · Mint · BusinessLine | market |
 | **3 · Social** | Reddit (r/IndiaInvestments, r/DalalStreetTalks) *(best-effort)* | market |
-| **+** | Your own custom RSS/Atom feeds | market |
+| **+** | Your own custom RSS/Atom feeds | market / per-stock |
+| **+** | Your own email inbox via **IMAP** (broker/exchange/newsletter alerts) | market / per-stock |
 
 > *Best-effort sources (BSE, Reddit) depend on your network — some endpoints rate-limit datacenter IPs and
 > work best from a normal connection. They fail silently and never block a cycle; NSE covers the filing signal

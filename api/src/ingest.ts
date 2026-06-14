@@ -3,6 +3,8 @@ import { db } from "./db/client.js";
 import { articles, customSources, instruments } from "./db/schema.js";
 import { instrumentSources, marketSources } from "./sources/registry.js";
 import { fetchCustomRss } from "./sources/custom-rss.js";
+import { fetchImap, emailToNewsItem } from "./sources/custom-imap.js";
+import { matchesInstrument } from "./lib/match.js";
 import type { InstrumentRef, NewsItem } from "./sources/base.js";
 import { PER_ENTITY_SCORE_CAP, scoreArticle } from "./ai/analyst.js";
 import { maybeFireAlerts } from "./alerts.js";
@@ -164,35 +166,87 @@ export async function ingestInstrument(instrumentId: number): Promise<number> {
   return newIds.length;
 }
 
-async function ingestMarket(): Promise<number> {
-  // Built-in market-wide sources
-  const settled = await Promise.allSettled(marketSources().map((s) => s.fetch()));
-  const items: NewsItem[] = [];
-  for (const r of settled) if (r.status === "fulfilled") items.push(...r.value);
+async function persistAndScore(instrumentId: number | null, items: NewsItem[]): Promise<number> {
+  if (items.length === 0) return 0;
+  const ids = await persist(instrumentId, items);
+  if (ids.length > 0) {
+    bus.emit("articles.new", { instrumentId, count: ids.length });
+    scheduleScoring(ids);
+  }
+  return ids.length;
+}
 
-  // User-added custom RSS feeds (treated as market-wide)
-  const customs = await db
-    .select()
-    .from(customSources)
-    .where(and(eq(customSources.enabled, true), eq(customSources.kind, "rss")));
+/**
+ * Route items from a user-added custom source (RSS / IMAP email) according to its scope:
+ *   - "market"        → market-wide (Pulse feed)
+ *   - "all"           → attach to any watched stock the item mentions; un-matched items
+ *                       still land market-wide so nothing is lost
+ *   - "RELIANCE,TCS"  → attach straight to those stocks, no mention filter
+ */
+async function routeCustomItems(items: NewsItem[], scope: string): Promise<number> {
+  if (items.length === 0) return 0;
+  const s = (scope || "market").trim().toLowerCase();
+  if (s === "market") return persistAndScore(null, items);
+
+  const insts = await db.select().from(instruments);
+  const explicit = s !== "all" && s !== "";
+  const allow = explicit
+    ? new Set(scope.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean))
+    : null;
+
+  const routed = new Set<string>();
+  let count = 0;
+  for (const inst of insts) {
+    if (explicit && !allow!.has(inst.symbol.toUpperCase())) continue;
+    const matched = explicit
+      ? items
+      : items.filter((it) =>
+          matchesInstrument(`${it.title} ${it.description ?? ""}`, inst.symbol, inst.name)
+        );
+    if (matched.length === 0) continue;
+    for (const it of matched) routed.add(it.externalId);
+    count += await persistAndScore(inst.id, matched);
+  }
+  if (s === "all") {
+    const unmatched = items.filter((it) => !routed.has(it.externalId));
+    count += await persistAndScore(null, unmatched);
+  }
+  return count;
+}
+
+async function ingestMarket(): Promise<number> {
+  let total = 0;
+
+  // Built-in market-wide sources (SEBI, macro, press, social) → Pulse feed.
+  const settled = await Promise.allSettled(marketSources().map((s) => s.fetch()));
+  const builtin: NewsItem[] = [];
+  for (const r of settled) if (r.status === "fulfilled") builtin.push(...r.value);
+  total += await persistAndScore(null, builtin);
+
+  // User-added custom sources (RSS feeds + IMAP monitoring inboxes), scope-routed.
+  const customs = await db.select().from(customSources).where(eq(customSources.enabled, true));
   for (const cs of customs) {
     try {
-      items.push(...(await fetchCustomRss(cs.id, cs.configJson)));
+      let items: NewsItem[] = [];
+      if (cs.kind === "rss") {
+        items = await fetchCustomRss(cs.id, cs.configJson);
+      } else if (cs.kind === "imap") {
+        const emails = await fetchImap(cs.id, cs.configJson);
+        items = emails
+          .map((m) => emailToNewsItem(cs.id, m))
+          .filter((x): x is NewsItem => x !== null);
+      }
+      total += await routeCustomItems(items, cs.scope);
       await db
         .update(customSources)
         .set({ lastPolledAt: new Date() })
         .where(eq(customSources.id, cs.id));
     } catch (e) {
-      console.warn(`[custom_rss ${cs.id}] ${(e as Error).message}`);
+      console.warn(`[custom ${cs.kind} ${cs.id}] ${(e as Error).message}`);
     }
   }
 
-  const newIds = await persist(null, items);
-  if (newIds.length > 0) {
-    bus.emit("articles.new", { instrumentId: null, count: newIds.length });
-    scheduleScoring(newIds);
-  }
-  return newIds.length;
+  return total;
 }
 
 /** Catch-up: score items missed in earlier cycles, bounded per scope. */

@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { articles, customSources } from "../db/schema.js";
 import { sourceMetas, SOURCE_LABELS } from "../sources/registry.js";
+import { testImap, type ImapConfig } from "../sources/custom-imap.js";
 
 export const sourcesRoute = new Hono();
 
@@ -18,12 +19,26 @@ sourcesRoute.get("/builtin", async (c) => {
 sourcesRoute.get("/labels", async (c) => {
   const rows = await db.select().from(customSources);
   const labels: Record<string, string> = { ...SOURCE_LABELS };
-  for (const cs of rows) labels[`custom_rss_${cs.id}`] = `✦ ${cs.name}`;
+  for (const cs of rows) {
+    const icon = cs.kind === "imap" ? "✉" : "✦";
+    labels[`custom_${cs.kind}_${cs.id}`] = `${icon} ${cs.name}`;
+  }
   return c.json(labels);
 });
 
 sourcesRoute.get("/custom", async (c) => {
   const rows = await db.select().from(customSources).orderBy(customSources.createdAt);
+  // Never expose stored IMAP passwords to the client.
+  for (const r of rows) {
+    if (r.kind === "imap") {
+      try {
+        const cfg = JSON.parse(r.configJson);
+        r.configJson = JSON.stringify({ ...cfg, password: cfg.password ? "***" : "" });
+      } catch {
+        /* leave as-is */
+      }
+    }
+  }
   return c.json(rows);
 });
 
@@ -39,6 +54,44 @@ sourcesRoute.post("/rss", async (c) => {
       .values({ name, kind: "rss", configJson: JSON.stringify({ url }), scope })
       .returning()
   )[0];
+  return c.json(row, 201);
+});
+
+function imapConfigFromBody(body: Record<string, unknown>): ImapConfig {
+  return {
+    host: String(body.host ?? "").trim(),
+    port: Number(body.port) || 993,
+    username: String(body.username ?? "").trim(),
+    password: String(body.password ?? ""),
+    folder: String(body.folder ?? "INBOX").trim() || "INBOX",
+    tls: body.tls === undefined ? true : Boolean(body.tls),
+  };
+}
+
+// Test IMAP credentials without saving — used by the "Test connection" button.
+sourcesRoute.post("/imap/test", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const cfg = imapConfigFromBody(body);
+  const res = await testImap(JSON.stringify(cfg));
+  return c.json(res, res.ok ? 200 : 400);
+});
+
+sourcesRoute.post("/imap", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const name = String(body.name ?? "").trim();
+  const cfg = imapConfigFromBody(body);
+  const scope = String(body.scope ?? "all").trim() || "all";
+  if (!name || !cfg.host || !cfg.username || !cfg.password) {
+    return c.json({ error: "name, host, username and password are required" }, 400);
+  }
+  const row = (
+    await db
+      .insert(customSources)
+      .values({ name, kind: "imap", configJson: JSON.stringify(cfg), scope })
+      .returning()
+  )[0];
+  // Don't leak the stored password back to the client.
+  if (row) row.configJson = JSON.stringify({ ...cfg, password: "***" });
   return c.json(row, 201);
 });
 

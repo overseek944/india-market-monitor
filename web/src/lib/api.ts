@@ -22,6 +22,15 @@ const TIME_RANGE_MS: Record<string, number> = {
   "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
+export interface ImapInput {
+  host: string;
+  port?: number;
+  username: string;
+  password: string;
+  folder?: string;
+  tls?: boolean;
+}
+
 async function http<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, {
     ...init,
@@ -96,6 +105,13 @@ export const api = {
   customSources: () => http<CustomSource[]>("/api/sources/custom"),
   addRssSource: (data: { name: string; url: string; scope?: string }) =>
     http<CustomSource>("/api/sources/rss", { method: "POST", body: JSON.stringify(data) }),
+  testImapSource: (data: ImapInput) =>
+    http<{ ok: boolean; error?: string; messages?: number }>("/api/sources/imap/test", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  addImapSource: (data: ImapInput & { name: string; scope?: string }) =>
+    http<CustomSource>("/api/sources/imap", { method: "POST", body: JSON.stringify(data) }),
   toggleCustomSource: (id: number) =>
     http<{ ok: true; enabled: boolean }>(`/api/sources/${id}/toggle`, { method: "POST" }),
   deleteCustomSource: (id: number) =>
