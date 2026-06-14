@@ -15,6 +15,12 @@
 ![cost](https://img.shields.io/badge/cost-%E2%82%B90_%2F_no_API_keys-success)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
+<br>
+
+<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="India Market Monitor — live demo" width="860"></a>
+
+<sub>▶ <a href="docs/demo.mp4"><b>Watch the full-quality demo</b></a> · click the preview above</sub>
+
 </div>
 
 ---
